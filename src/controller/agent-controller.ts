@@ -5,11 +5,20 @@ import { BrowserHelper } from "../helper/browser-helper";
 require("dotenv").config();
 
 export const AgentController = {
+  /**
+   * Retrieves user data by simulating browser actions.
+   * @param {any} reqBody - The request body containing user details.
+   * @returns {Promise<Replay>} - Response object indicating success or failure.
+   */
   GET_USER_DATA: async function (reqBody: any): Promise<Replay> {
-    let browser;
+    logInfo("Starting GET_USER_DATA process...");
+
+    // אתחול הדפדפן והקונטקסט
+    const { context, browser } = await BrowserHelper.initializeBrowser();
+
     try {
-      const redisCookies = await BrowserHelper.getCookies();
-      if (!redisCookies) {
+      if (!context) {
+        logError("No cookies found in Redis.");
         return {
           isSuccess: false,
           message: "No cookies found.",
@@ -17,19 +26,21 @@ export const AgentController = {
         };
       }
 
-      browser = await chromium.launch({ headless: true });
-      const context = await BrowserHelper.createBrowserContext(
-        browser,
-        redisCookies
-      );
+      logInfo("Browser context initialized successfully.");
+
+      // יצירת עמוד חדש בדפדפן
       const page = await context.newPage();
+      logInfo("New page created.");
 
-      await BrowserHelper.navigateToPage(page);
+      // עיבוד נתוני המשתמש והורדת אקסל
+      const excelData = await BrowserHelper.processUserData(
+        page,
+        context,
+        reqBody
+      );
 
-      const [fillPageDetailsResult, captchaCode] =
-        await BrowserHelper.runParallelTasks(page, reqBody);
-
-      if (!fillPageDetailsResult || !captchaCode) {
+      if (!excelData) {
+        logError("Failed to process user data.");
         return {
           isSuccess: false,
           message: "Failed to process user data.",
@@ -37,19 +48,7 @@ export const AgentController = {
         };
       }
 
-      await BrowserHelper.submitForm(page, captchaCode);
-      await page.waitForNavigation();
-      await page.waitForSelector("#butInsuranceOf");
-      await page.click("#butInsuranceOf");
-      await new Promise((resolve) => setTimeout(resolve, 4000));
-
-      const cookies = await context.cookies();
-      const excelData = await BrowserHelper.downloadAndParseExcel(
-        page,
-        cookies
-      );
-
-      logInfo("✅ Page accessed successfully.");
+      logInfo("Page accessed and Excel data retrieved successfully.");
       return {
         isSuccess: true,
         message: "Page accessed successfully.",
@@ -57,75 +56,20 @@ export const AgentController = {
         data: excelData,
       };
     } catch (error: any) {
-      logError("❌ Error during user data 1 retrieval", {
-        error: error.message,
-      });
+      logError(`Error during user data retrieval: ${error.message}`);
       return {
         isSuccess: false,
         message: "Failed to access the page.",
         statusCode: 99,
       };
     } finally {
+      // סגירת הדפדפן לאחר השימוש
       if (browser) {
+        logInfo("Closing browser...");
         await new Promise((resolve) => setTimeout(resolve, 4000));
         await browser.close();
+        logInfo("Browser closed.");
       }
-    }
-  },
-  /**
-   * Retrieves user data by simulating browser actions.
-   * @param {any} reqBody - The request body containing user details.
-   * @returns {Promise<Replay>} - Response object indicating success or failure.
-   */
-  SET_USER_DATA: async function (
-    page: any,
-    context: any,
-    reqBody: any
-  ): Promise<Replay> {
-    try {
-      await BrowserHelper.navigateToPage(page);
-
-      const [fillPageDetailsResult, captchaCode] =
-        await BrowserHelper.runParallelTasks(page, reqBody);
-
-      if (!fillPageDetailsResult || !captchaCode) {
-        return {
-          isSuccess: false,
-          message: "Failed to process user data.",
-          statusCode: 2,
-        };
-      }
-
-      await BrowserHelper.submitForm(page, captchaCode);
-      await page.waitForNavigation();
-      await page.waitForSelector("#butInsuranceOf");
-      await page.click("#butInsuranceOf");
-      await new Promise((resolve) => setTimeout(resolve, 4000));
-
-      const cookies = await context.cookies();
-      const excelData = await BrowserHelper.downloadAndParseExcel(
-        page,
-        cookies
-      );
-      console.log("dasa", excelData);
-
-      logInfo("✅ Page accessed successfully.");
-      return {
-        isSuccess: true,
-        message: "Page accessed successfully.",
-        statusCode: 3,
-        data: excelData,
-      };
-    } catch (error: any) {
-      logError("❌ Error during user data 2 retrieval" + error.message, {
-        error: error.message,
-      });
-      return {
-        isSuccess: false,
-        message: "Failed to access the page.",
-        statusCode: 99,
-      };
-    } finally {
     }
   },
 };
