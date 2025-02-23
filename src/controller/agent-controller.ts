@@ -8,8 +8,8 @@ export const AgentController = {
   GET_USER_DATA: async function (reqBody: any): Promise<Replay> {
     let browser;
     try {
-      const cookies = await BrowserHelper.getCookies();
-      if (!cookies) {
+      const redisCookies = await BrowserHelper.getCookies();
+      if (!redisCookies) {
         return {
           isSuccess: false,
           message: "No cookies found.",
@@ -20,12 +20,42 @@ export const AgentController = {
       browser = await chromium.launch({ headless: true });
       const context = await BrowserHelper.createBrowserContext(
         browser,
-        cookies
+        redisCookies
       );
       const page = await context.newPage();
 
-      const aa = await this.GET_USER_DATA_A(page, context, reqBody);
-      return aa;
+      await BrowserHelper.navigateToPage(page);
+
+      const [fillPageDetailsResult, captchaCode] =
+        await BrowserHelper.runParallelTasks(page, reqBody);
+
+      if (!fillPageDetailsResult || !captchaCode) {
+        return {
+          isSuccess: false,
+          message: "Failed to process user data.",
+          statusCode: 2,
+        };
+      }
+
+      await BrowserHelper.submitForm(page, captchaCode);
+      await page.waitForNavigation();
+      await page.waitForSelector("#butInsuranceOf");
+      await page.click("#butInsuranceOf");
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      const cookies = await context.cookies();
+      const excelData = await BrowserHelper.downloadAndParseExcel(
+        page,
+        cookies
+      );
+
+      logInfo("✅ Page accessed successfully.");
+      return {
+        isSuccess: true,
+        message: "Page accessed successfully.",
+        statusCode: 3,
+        data: excelData,
+      };
     } catch (error: any) {
       logError("❌ Error during user data 1 retrieval", {
         error: error.message,
@@ -47,7 +77,7 @@ export const AgentController = {
    * @param {any} reqBody - The request body containing user details.
    * @returns {Promise<Replay>} - Response object indicating success or failure.
    */
-  GET_USER_DATA_A: async function (
+  SET_USER_DATA: async function (
     page: any,
     context: any,
     reqBody: any
