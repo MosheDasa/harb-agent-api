@@ -17,24 +17,19 @@ export const AgentController = {
         };
       }
 
-      browser = await chromium.launch({ headless: false });
+      browser = await chromium.launch({ headless: true });
       const context = await BrowserHelper.createBrowserContext(
         browser,
         cookies
       );
       const page = await context.newPage();
 
-      const aa = await this.GET_USER_DATA_A(page, reqBody);
-      // await new Promise((resolve) => setTimeout(resolve, 1000));
-      // const bb = await this.GET_USER_DATA_B(page);
-
-      return {
-        isSuccess: false,
-        message: "Failed to access the page.",
-        statusCode: 99,
-      };
+      const aa = await this.GET_USER_DATA_A(page, context, reqBody);
+      return aa;
     } catch (error: any) {
-      logError("❌ Error during user data retrieval", { error: error.message });
+      logError("❌ Error during user data 1 retrieval", {
+        error: error.message,
+      });
       return {
         isSuccess: false,
         message: "Failed to access the page.",
@@ -42,7 +37,8 @@ export const AgentController = {
       };
     } finally {
       if (browser) {
-        // await browser.close();
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        await browser.close();
       }
     }
   },
@@ -51,7 +47,11 @@ export const AgentController = {
    * @param {any} reqBody - The request body containing user details.
    * @returns {Promise<Replay>} - Response object indicating success or failure.
    */
-  GET_USER_DATA_A: async function (page: any, reqBody: any): Promise<Replay> {
+  GET_USER_DATA_A: async function (
+    page: any,
+    context: any,
+    reqBody: any
+  ): Promise<Replay> {
     try {
       await BrowserHelper.navigateToPage(page);
 
@@ -67,15 +67,29 @@ export const AgentController = {
       }
 
       await BrowserHelper.submitForm(page, captchaCode);
+      await page.waitForNavigation();
+      await page.waitForSelector("#butInsuranceOf");
+      await page.click("#butInsuranceOf");
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      const cookies = await context.cookies();
+      const excelData = await BrowserHelper.downloadAndParseExcel(
+        page,
+        cookies
+      );
+      console.log("dasa", excelData);
 
       logInfo("✅ Page accessed successfully.");
       return {
         isSuccess: true,
         message: "Page accessed successfully.",
         statusCode: 3,
+        data: excelData,
       };
     } catch (error: any) {
-      logError("❌ Error during user data retrieval", { error: error.message });
+      logError("❌ Error during user data 2 retrieval" + error.message, {
+        error: error.message,
+      });
       return {
         isSuccess: false,
         message: "Failed to access the page.",
@@ -83,14 +97,5 @@ export const AgentController = {
       };
     } finally {
     }
-  },
-  GET_USER_DATA_B: async function (page: any): Promise<Replay> {
-    const excelData = await BrowserHelper.downloadAndParseExcel(page);
-    console.log("dasa", excelData);
-    return {
-      isSuccess: true,
-      message: "page.",
-      statusCode: 0,
-    };
   },
 };

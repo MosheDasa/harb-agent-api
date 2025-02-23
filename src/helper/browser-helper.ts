@@ -174,11 +174,48 @@ export const BrowserHelper = {
     await page.fill("#CaptchaCode", captchaCode);
     await Promise.all([
       page.click("#butIdent"),
-      page.waitForLoadState("networkidle", { timeout: 10000 }),
+      // page.waitForLoadState("networkidle", { timeout: 10000 }),
     ]);
   },
+  downloadAndParseExcel: async (page: any, cookies: any) => {
+    const href = await page.evaluate(() => {
+      const element = document.querySelector('a[title="הדפסה"]');
+      return element ? element.getAttribute("href") : null;
+    });
 
-  downloadAndParseExcel: async function (page: Page) {
+    if (href) {
+      const downloadUrl = new URL(href, "https://harb.cma.gov.il"); // Replace with your base URL
+      // Create a custom agent to skip certificate validation
+
+      const cookieString = cookies
+        .map((cookie: any) => `${cookie.name}=${cookie.value}`)
+        .join("; ");
+
+      const response = await GeneralServer.downloadExcel(
+        downloadUrl.href,
+        cookieString
+      );
+
+      console.log("dasa", response);
+
+      // Read the file as a Workbook
+      const workbook = xlsx.read(response, { type: "buffer" });
+
+      // Convert each sheet to a JSON object
+      const sheets = workbook.SheetNames;
+      const data: { [key: string]: any[] } = {};
+      sheets.forEach((sheetName) => {
+        const worksheet = workbook.Sheets[sheetName];
+        data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
+          raw: false,
+          defval: "",
+        });
+      });
+
+      return data;
+    }
+  },
+  downloadAndParseExcelaaa: async function (page: Page) {
     try {
       // שליפת ה-URL של הקובץ
       const href = await page.evaluate(() => {
@@ -190,17 +227,17 @@ export const BrowserHelper = {
         throw new Error("לא נמצא קישור להורדת קובץ Excel.");
       }
 
+      // קידוד ה-URL כדי למנוע תווים לא חוקיים
+      const encodedUrl = new URL(encodeURI(href), "https://harb.cma.gov.il");
+
       // שליפת ה-Cookies מהעמוד
       const cookies = await page.context().cookies();
       const cookieString = cookies
         .map((cookie: any) => `${cookie.name}=${cookie.value}`)
         .join("; ");
 
-      // יצירת ה-URL המלא של ההורדה
-      const downloadUrl = new URL(href, "https://harb.cma.gov.il");
-
       // הורדת הקובץ באמצעות fetch
-      const response = await fetch(downloadUrl.href, {
+      const response = await fetch(encodedUrl.href, {
         method: "GET",
         headers: {
           Cookie: cookieString,
