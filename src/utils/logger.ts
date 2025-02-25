@@ -28,8 +28,9 @@ const myFormat = printf(({ level, message, timestamp, method, userId }) => {
   );
 
   return JSON.stringify({
-    time: formattedTimestamp,
     level: level.toUpperCase(),
+    time: formattedTimestamp,
+
     api: "agentApi",
     method: method || "unknown",
     userId: userId || "unknown",
