@@ -63,7 +63,7 @@ export const BrowserUtils = {
       return { browser: null, context: null };
     }
 
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: false });
     const context = await this.createBrowserContext(browser, redisCookies);
     logDebug("Browser initialized successfully.");
     return { context, browser };

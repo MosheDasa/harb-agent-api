@@ -24,11 +24,7 @@ export const AgentController = {
       const page = await context.newPage();
 
       // עיבוד נתוני המשתמש והורדת אקסל
-      const excelData = await BrowserHelper.processUserData(
-        page,
-        context,
-        reqBody
-      );
+      const excelData = await BrowserHelper.processUserData(page, reqBody);
 
       if (!excelData) {
         logError("Failed to process user data.");

@@ -1,7 +1,8 @@
 import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import { logError, logInfo } from "./utils/logger";
 import { agentRoute } from "./routes/agent";
-
+import { asyncStorage, setRequestContext } from "./Hook/fastify";
+import { v4 as uuidv4 } from "uuid";
 const server = fastify();
 
 server.addHook(
@@ -13,14 +14,30 @@ server.addHook(
     reply.header("Access-Control-Expose-Headers", "Content-Length");
     reply.header(
       "Access-Control-Allow-Headers",
-      "Accept, Authorization, x-auth-token, Content-Type, X-Requested-With, Range, x-user-id"
+      "Accept, Authorization, x-auth-token, Content-Type, X-Requested-With, Range, x-user-id , x-client-id"
     );
-
+    const requestId = uuidv4(); // יצירת מזהה ייחודי
+    request.headers["x-request-id"] = requestId; // הוספתו לכותרת הבקשה
     if (request.method === "OPTIONS") {
       reply.code(200).send();
     } else {
       done();
     }
+  }
+);
+
+server.addHook(
+  "preHandler",
+  (request: FastifyRequest, reply: FastifyReply, done) => {
+    const userId = (request.headers["x-user-id"] as string) || "empty";
+    const clientId = (request.headers["x-client-id"] as string) || "empty";
+    const requestId = (request.headers["x-request-id"] as string) || "empty";
+
+    // יצירת הקשר לכל חיי הבקשה
+    asyncStorage.run(new Map(), () => {
+      setRequestContext(userId, clientId, requestId + "#" + userId); // הגדרת ה-User ID בתוך ההקשר
+      done(); // המשך עיבוד הבקשה
+    });
   }
 );
 

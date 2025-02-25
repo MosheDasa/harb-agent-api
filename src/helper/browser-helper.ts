@@ -58,6 +58,7 @@ export const BrowserHelper = {
   },
 
   solveCaptcha: async function (page: Page): Promise<string | null> {
+    const start = performance.now();
     try {
       logDebug("Solving CAPTCHA...");
       const captchaElement = page.locator(
@@ -74,7 +75,7 @@ export const BrowserHelper = {
         );
 
         if (captchaResponse?.status === "completed") {
-          logDebug("CAPTCHA solved successfully.");
+          logDebug("CAPTCHA solved successfully.", captchaResponse.text);
           return captchaResponse.text;
         } else {
           logError("Failed to solve CAPTCHA - Incomplete status");
@@ -85,12 +86,14 @@ export const BrowserHelper = {
       }
     } catch (error: any) {
       logError("Error solving CAPTCHA", { error: error.message });
+    } finally {
+      const end = performance.now();
+      logDebug(`CAPTCHA solved took ${(end - start) / 1000}  ms`);
     }
     return null;
   },
 
   runParallelTasks: async function (page: Page, reqBody: any) {
-    logDebug("Running parallel tasks: filling details and solving CAPTCHA...");
     const results = await Promise.all([
       await BrowserHelper.fillPageDetails(page, {
         id: reqBody.id,
@@ -103,11 +106,7 @@ export const BrowserHelper = {
     return results;
   },
 
-  processUserData: async function (
-    page: Page,
-    context: BrowserContext,
-    reqBody: any
-  ): Promise<any> {
+  processUserData: async function (page: Page, reqBody: any): Promise<any> {
     logDebug("Processing user data...");
     await BrowserUtils.navigateToPage(page);
 
@@ -127,12 +126,12 @@ export const BrowserHelper = {
     await page.click("#butInsuranceOf");
     logDebug("butInsuranceOf.");
 
-    const excelData = await this.downloadAndParseExcel(page, context);
+    const excelData = await this.downloadAndParseExcel(page);
     logDebug("User data processed successfully.", excelData);
     return excelData;
   },
 
-  downloadAndParseExcel: async (page: any, context: any) => {
+  downloadAndParseExcel: async (page: any) => {
     try {
       console.log("🔄 Starting downloadAndParseExcel...");
 
@@ -159,8 +158,6 @@ export const BrowserHelper = {
         waitUntil: "domcontentloaded",
       });
 
-      console.log("dasda downloadUrl", downloadUrl);
-
       const htmlContent = await page.content();
 
       await page.setContent(htmlContent);
@@ -174,26 +171,9 @@ export const BrowserHelper = {
         });
       });
 
-      console.log("📊 Table Data:", tableData);
-
-      // המרת הנתונים ל-JSON
-      const headers = [
-        "תעודת זהות",
-        "ענף ראשי",
-        "ענף משני",
-        "סוג מוצר",
-        "חברה",
-        "תקופת ביטוח",
-        "פרטים נוספים",
-        'פרמיה בש"ח',
-        "סוג פרמיה",
-        "מספר פוליסה",
-        "סיווג תוכנית",
-      ];
-
       return tableData;
     } catch (error) {
-      console.error("❌ Error in downloadAndParseExcel:", error);
+      logError("Error in downloadAndParseExcel:", { error });
       throw error;
     }
   },

@@ -20,23 +20,27 @@ export enum LogLevel {
 const LOG_LEVEL = (process.env.LOG_LEVEL || LogLevel.INFO).toLowerCase();
 
 // Custom log format for Splunk
-const myFormat = printf(({ level, message, timestamp, method, userId }) => {
-  const formattedTimestamp = formatDate(
-    new Date(timestamp as string | number | Date),
-    "dd/MM/yyyy HH:mm:ss.SSSXXX",
-    { locale: he }
-  );
+const myFormat = printf(
+  ({ level, message, timestamp, method, userId, clientId, requestId }) => {
+    const formattedTimestamp = formatDate(
+      new Date(timestamp as string | number | Date),
+      "dd/MM/yyyy HH:mm:ss.SSSXXX",
+      { locale: he }
+    );
 
-  return JSON.stringify({
-    level: level.toUpperCase(),
-    time: formattedTimestamp,
+    return JSON.stringify({
+      level: level.toUpperCase(),
+      time: formattedTimestamp,
 
-    api: "agentApi",
-    method: method || "unknown",
-    userId: userId || "unknown",
-    message: message,
-  });
-});
+      api: "agentApi",
+      method: method || "unknown",
+      userId: userId || "unknown",
+      clientId: clientId || "unknown",
+      message: message,
+      requestId,
+    });
+  }
+);
 
 // Logger configuration
 const logger = winston.createLogger({
@@ -73,7 +77,11 @@ const logMessage = (
   obj: object | null = null
 ) => {
   const methodName = getMethodName();
-  const { userId = "unknown" } = getRequestContext();
+  const {
+    userId = "unknown",
+    clientId = "unknown",
+    requestId = "unknown",
+  } = getRequestContext();
 
   const logEntry = {
     level,
@@ -81,6 +89,8 @@ const logMessage = (
     timestamp: new Date().toISOString(),
     method: methodName,
     userId,
+    clientId,
+    requestId,
   };
 
   logger.log(level, message, logEntry);
