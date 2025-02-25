@@ -13,7 +13,7 @@ server.addHook(
     reply.header("Access-Control-Expose-Headers", "Content-Length");
     reply.header(
       "Access-Control-Allow-Headers",
-      "Accept, Authorization, x-auth-token, Content-Type, X-Requested-With, Range"
+      "Accept, Authorization, x-auth-token, Content-Type, X-Requested-With, Range, x-user-id"
     );
 
     if (request.method === "OPTIONS") {
