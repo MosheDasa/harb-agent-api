@@ -75,9 +75,6 @@ export const BrowserHelper = {
     id: string,
     index: number
   ) {
-    logDebug(
-      `Selecting item '${val}' from dropdown '${id}' at index ${index}...`
-    );
     await page.evaluate(
       ({ value, id, index }: { value: string; id: string; index: number }) => {
         const lists = document.querySelectorAll(`#${id}`);
@@ -101,7 +98,6 @@ export const BrowserHelper = {
       },
       { value: val, id, index }
     );
-    logDebug(`Item '${val}' selected successfully.`);
   },
 
   /**
@@ -309,7 +305,7 @@ export const BrowserHelper = {
       return { browser: null, context: null };
     }
 
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: false });
     const context = await BrowserHelper.createBrowserContext(
       browser,
       redisCookies
@@ -348,7 +344,7 @@ export const BrowserHelper = {
     await page.waitForSelector("#butInsuranceOf");
     await page.click("#butInsuranceOf");
     logDebug("butInsuranceOf.");
-    await new Promise((resolve) => setTimeout(resolve, 7000));
+
     const excelData = await this.downloadAndParseExcel(page, context);
     logDebug("User data processed successfully.", excelData);
     return excelData;
@@ -358,71 +354,74 @@ export const BrowserHelper = {
     try {
       console.log("🔄 Starting downloadAndParseExcel...");
 
-      // שלב 1: מציאת קישור להורדה
+      const idInput = page.locator("#butAllInsurance");
+      await idInput.waitFor({ state: "visible" });
+
+      await page.addInitScript(() => {
+        window.print = () => {
+          console.log("🚫 window.print() was blocked.");
+        };
+      });
+
       const href = await page.evaluate(() => {
-        const element = document.querySelector('a[title="הדפסה"]');
-        return element ? element.getAttribute("href") : null;
-      });
-
-      console.log(`🔗 Found href: ${href}`);
-
-      if (!href) {
-        console.warn("⚠️ No download link found.");
+        const element = document.querySelector('a[title="הדפסה"]') as any;
+        if (element) {
+          return element.getAttribute("href");
+        }
         return null;
-      }
-
-      // שלב 2: יצירת URL מלא
+      });
       const downloadUrl = new URL(href, "https://harb.cma.gov.il");
-      console.log(`🌍 Download URL: ${downloadUrl.href}`);
 
-      // שלב 3: קבלת קובצי Cookie
-      const cookies = await context.cookies();
-      const cookieString = cookies
-        .map((cookie: any) => `${cookie.name}=${cookie.value}`)
-        .join("; ");
-      console.log(`🍪 Cookies: ${cookieString}`);
-
-      // שלב 4: הורדת הקובץ
-      console.log("📥 Downloading the Excel file...");
-      const response = await axios.get(downloadUrl.href, {
-        responseType: "arraybuffer",
-        headers: {
-          Cookie: cookieString,
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        },
+      // פתיחת הדף
+      await page.goto("" + downloadUrl, {
+        waitUntil: "domcontentloaded",
       });
 
-      console.log(
-        `✅ File downloaded successfully. Size: ${response.data.length} bytes`
-      );
+      console.log("dasda downloadUrl", downloadUrl);
 
-      // שלב 5: המרת הנתונים לבאפר
-      const buffer = Buffer.from(response.data, "binary");
+      const htmlContent = await page.content();
 
-      // שלב 6: קריאת קובץ ה-Excel
-      console.log("📊 Reading Excel workbook...");
-      const workbook = xlsx.read(buffer, { type: "buffer" });
+      // console.log("📄 HTML Content:");
+      // console.log(htmlContent);
 
-      // שלב 7: המרת גיליונות ל-JSON
-      const sheets = workbook.SheetNames;
-      console.log(`📄 Sheets found: ${sheets.join(", ")}`);
+      // הכנסת ה-HTML לדף Playwright
+      await page.setContent(htmlContent);
 
-      const data: { [key: string]: any[] } = {};
-      sheets.forEach((sheetName) => {
-        console.log(`🔍 Processing sheet: ${sheetName}`);
-        const worksheet = workbook.Sheets[sheetName];
-        data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
-          raw: false,
-          defval: "",
+      // חילוץ נתוני הטבלה
+      const tableData = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll("table tbody tr"));
+        return rows.map((row) => {
+          const cells = Array.from(row.querySelectorAll("td"));
+          return cells.map((cell) => cell.innerText.trim());
         });
-        console.log(
-          `📋 Rows extracted from ${sheetName}: ${data[sheetName].length}`
-        );
       });
 
-      console.log("✅ Excel parsing completed successfully.");
-      return data;
+      console.log("📊 Table Data:", tableData);
+
+      // המרת הנתונים ל-JSON
+      const headers = [
+        "תעודת זהות",
+        "ענף ראשי",
+        "ענף משני",
+        "סוג מוצר",
+        "חברה",
+        "תקופת ביטוח",
+        "פרטים נוספים",
+        'פרמיה בש"ח',
+        "סוג פרמיה",
+        "מספר פוליסה",
+        "סיווג תוכנית",
+      ];
+
+      const jsonData = tableData.map((row: any) => {
+        const obj = {} as any;
+        row.forEach((cell: any, index: any) => {
+          obj[headers[index]] = cell;
+        });
+        return obj;
+      });
+
+      return tableData;
     } catch (error) {
       console.error("❌ Error in downloadAndParseExcel:", error);
       throw error;
