@@ -3,6 +3,7 @@ import Utils from "../utils/utils";
 import { redisHelper } from "./redis-helper";
 import { logError, logInfo } from "../utils/logger";
 import { GeneralServer } from "../server/general-server";
+import axios from "axios";
 import * as xlsx from "xlsx";
 require("dotenv").config();
 
@@ -188,12 +189,12 @@ export const BrowserHelper = {
   runParallelTasks: async function (page: Page, reqBody: any) {
     logInfo("Running parallel tasks: filling details and solving CAPTCHA...");
     const results = await Promise.all([
-      BrowserHelper.fillPageDetails(page, {
+      await BrowserHelper.fillPageDetails(page, {
         id: reqBody.id,
         bod: reqBody.bod,
         iis: reqBody.iis,
       }),
-      BrowserHelper.solveCaptcha(page),
+      await BrowserHelper.solveCaptcha(page),
     ]);
     logInfo("Parallel tasks completed.");
     return results;
@@ -217,47 +218,47 @@ export const BrowserHelper = {
    * @param {Cookie[]} cookies - Cookies for the request.
    * @returns {Promise<any>} Parsed Excel data.
    */
-  downloadAndParseExcel: async function (page: Page, cookies: any) {
-    logInfo("Downloading and parsing Excel file...");
-    const href = await page.evaluate(() => {
-      const element = document.querySelector('a[title="הדפסה"]');
-      return element ? element.getAttribute("href") : null;
-    });
+  // downloadAndParseExcel: async function (page: Page, cookies: any) {
+  //   logInfo("Downloading and parsing Excel file...");
+  //   const href = await page.evaluate(() => {
+  //     const element = document.querySelector('a[title="הדפסה"]');
+  //     return element ? element.getAttribute("href") : null;
+  //   });
 
-    if (!href) {
-      logError("No Excel download link found.");
-      return null;
-    }
+  //   if (!href) {
+  //     logError("No Excel download link found.");
+  //     return null;
+  //   }
 
-    const downloadUrl = new URL(href, "https://harb.cma.gov.il");
-    const cookieString = cookies
-      .map((cookie: any) => `${cookie.name}=${cookie.value}`)
-      .join("; ");
+  //   const downloadUrl = new URL(href, "https://harb.cma.gov.il");
+  //   const cookieString = cookies
+  //     .map((cookie: any) => `${cookie.name}=${cookie.value}`)
+  //     .join("; ");
 
-    const response = await GeneralServer.downloadExcel(
-      downloadUrl.href,
-      cookieString
-    );
-    if (!response) {
-      logError("Failed to download Excel file.");
-      return null;
-    }
+  //   const response = await GeneralServer.downloadExcel(
+  //     downloadUrl.href,
+  //     cookieString
+  //   );
+  //   if (!response) {
+  //     logError("Failed to download Excel file.");
+  //     return null;
+  //   }
 
-    logInfo("Excel file downloaded successfully. Parsing data...");
-    const workbook = xlsx.read(response, { type: "buffer" });
+  //   logInfo("Excel file downloaded successfully. Parsing data...");
+  //   const workbook = xlsx.read(response, { type: "buffer" });
 
-    const data = await this.convertSheetsToJson(workbook);
-    // sheets.forEach((sheetName) => {
-    //   const worksheet = workbook.Sheets[sheetName];
-    //   data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
-    //     raw: false,
-    //     defval: "",
-    //   });
-    // });
+  //   const data = await this.convertSheetsToJson(workbook);
+  //   // sheets.forEach((sheetName) => {
+  //   //   const worksheet = workbook.Sheets[sheetName];
+  //   //   data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
+  //   //     raw: false,
+  //   //     defval: "",
+  //   //   });
+  //   // });
 
-    logInfo("Excel data parsed successfully.");
-    return data;
-  },
+  //   logInfo("Excel data parsed successfully.");
+  //   return data;
+  // },
 
   /**
    * Converts Excel sheets to JSON format asynchronously.
@@ -335,7 +336,10 @@ export const BrowserHelper = {
     const [fillPageDetailsResult, captchaCode] =
       await BrowserHelper.runParallelTasks(page, reqBody);
     if (!fillPageDetailsResult || !captchaCode) {
-      logError("Failed to fill page details or solve CAPTCHA.");
+      logError("Failed to fill page details or solve CAPTCHA.", {
+        fillPageDetailsResult,
+        captchaCode,
+      });
       return null;
     }
 
@@ -344,30 +348,73 @@ export const BrowserHelper = {
     await page.waitForSelector("#butInsuranceOf");
     await page.click("#butInsuranceOf");
     logInfo("User data processed successfully.");
-    await new Promise((resolve) => setTimeout(resolve, 9000));
-    return await this.fetchExcelData(page, context);
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    return await this.downloadAndParseExcel(page, context); // this.fetchExcelData(page, context);
   },
 
+  downloadAndParseExcel: async (page: any, context: any) => {
+    const href = await page.evaluate(() => {
+      const element = document.querySelector('a[title="הדפסה"]');
+      return element ? element.getAttribute("href") : null;
+    });
+
+    if (href) {
+      const downloadUrl = new URL(href, "https://harb.cma.gov.il"); // Replace with your base URL
+      // Create a custom agent to skip certificate validation
+
+      const cookies = await context.cookies();
+      const cookieString = cookies
+        .map((cookie: any) => `${cookie.name}=${cookie.value}`)
+        .join("; ");
+
+      // Download the file as a buffer
+      const response = await axios.get(downloadUrl.href, {
+        responseType: "arraybuffer",
+        headers: {
+          Cookie: cookieString,
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        },
+      });
+      const buffer = Buffer.from(response.data, "binary");
+
+      // Read the file as a Workbook
+      const workbook = xlsx.read(buffer, { type: "buffer" });
+
+      // Convert each sheet to a JSON object
+      const sheets = workbook.SheetNames;
+      const data: { [key: string]: any[] } = {};
+      sheets.forEach((sheetName) => {
+        const worksheet = workbook.Sheets[sheetName];
+        data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
+          raw: false,
+          defval: "",
+        });
+      });
+
+      return data;
+    }
+  },
   /**
    * Fetches Excel data after user data processing.
    * @param {Page} page - The Playwright page instance.
    * @param {BrowserContext} context - The Playwright browser context.
    * @returns {Promise<any>} Parsed Excel data.
    */
-  fetchExcelData: async function (
-    page: Page,
-    context: BrowserContext
-  ): Promise<any> {
-    logInfo("Fetching Excel data...");
-    const cookies = await context.cookies();
-    const excelData = await BrowserHelper.downloadAndParseExcel(page, cookies);
+  // fetchExcelData: async function (
+  //   page: Page,
+  //   context: BrowserContext
+  // ): Promise<any> {
+  //   logInfo("Fetching Excel data...");
+  //   const cookies = await context.cookies();
+  //   const excelData = await BrowserHelper.downloadAndParseExcel(page, cookies);
 
-    if (!excelData) {
-      logError("Failed to download or parse Excel data.");
-      return null;
-    }
+  //   if (!excelData) {
+  //     logError("Failed to download or parse Excel data.");
+  //     return null;
+  //   }
 
-    logInfo("Excel data fetched successfully.");
-    return excelData;
-  },
+  //   logInfo("Excel data fetched successfully.");
+  //   return excelData;
+  // },
 };

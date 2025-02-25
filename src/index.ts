@@ -33,7 +33,8 @@ process.on("uncaughtException", (err) => {
 logInfo("Registering routes...");
 
 // רישום המסלולים בצורה בטוחה
-server.register(agentRoute);
+//server.register(agentRoute);
+server.register(agentRoute, { prefix: "/api/" });
 logInfo("agent route registered successfully.");
 
 // הפעלת השרת
