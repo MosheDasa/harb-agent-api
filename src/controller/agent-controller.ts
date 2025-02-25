@@ -4,19 +4,15 @@ import { Replay } from "../entity/general-bo";
 import { BrowserHelper } from "../helper/browser-helper";
 import Utils from "../utils/utils";
 import { UserDataReq } from "../entity/user-data-entity";
+import BrowserUtils from "../utils/browser-utils";
 require("dotenv").config();
 
 export const AgentController = {
-  /**
-   * Retrieves user data by simulating browser actions.
-   * @param {any} reqBody - The request body containing user details.
-   * @returns {Promise<Replay>} - Response object indicating success or failure.
-   */
   GET_USER_DATA: async function (reqBody: UserDataReq): Promise<Replay> {
     logDebug("Starting GET_USER_DATA process...");
 
     // אתחול הדפדפן והקונטקסט
-    const { context, browser } = await BrowserHelper.initializeBrowser();
+    const { context, browser } = await BrowserUtils.initializeBrowser();
 
     try {
       if (!context) {
@@ -24,11 +20,8 @@ export const AgentController = {
         return Utils.createResponse(false, "No cookies found.", 1);
       }
 
-      logDebug("Browser context initialized successfully.");
-
       // יצירת עמוד חדש בדפדפן
       const page = await context.newPage();
-      logDebug("New page created.");
 
       // עיבוד נתוני המשתמש והורדת אקסל
       const excelData = await BrowserHelper.processUserData(
@@ -56,7 +49,7 @@ export const AgentController = {
       // סגירת הדפדפן לאחר השימוש
       if (browser) {
         logDebug("Closing browser...");
-        //  await browser.close();
+        await browser.close();
         logDebug("Browser closed.");
       }
     }

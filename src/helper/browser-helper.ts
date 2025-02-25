@@ -5,15 +5,10 @@ import { GeneralServer } from "../server/general-server";
 import axios from "axios";
 import * as xlsx from "xlsx";
 import { logDebug, logError } from "../utils/logger";
+import BrowserUtils from "../utils/browser-utils";
 require("dotenv").config();
 
 export const BrowserHelper = {
-  /**
-   * Fills page details with user data.
-   * @param {Page} page - The Playwright page instance.
-   * @param {any} data - User data including ID and dates.
-   * @returns {Promise<boolean>} True if successful, otherwise false.
-   */
   fillPageDetails: async function (page: Page, data: any): Promise<boolean> {
     try {
       logDebug("Filling page details...");
@@ -40,7 +35,7 @@ export const BrowserHelper = {
       // Fill all select fields concurrently
       await Promise.all(
         selectFields.map((field) =>
-          this.selectItemFromListByIndex(
+          BrowserUtils.selectItemFromListByIndex(
             page,
             field.value.toString(),
             field.id,
@@ -62,49 +57,6 @@ export const BrowserHelper = {
     }
   },
 
-  /**
-   * Selects an item from a dropdown list by its index and value.
-   * @param {Page} page - The Playwright page instance.
-   * @param {string} val - The value to select.
-   * @param {string} id - The ID of the dropdown list.
-   * @param {number} index - The index of the list.
-   */
-  selectItemFromListByIndex: async function (
-    page: Page,
-    val: string,
-    id: string,
-    index: number
-  ) {
-    await page.evaluate(
-      ({ value, id, index }: { value: string; id: string; index: number }) => {
-        const lists = document.querySelectorAll(`#${id}`);
-        if (lists.length > index) {
-          const targetList = lists[index] as HTMLElement;
-          const items = targetList.querySelectorAll(".k-item");
-          const targetItem = Array.from(items).find(
-            (item) => (item as HTMLElement).textContent?.trim() === value
-          );
-
-          if (targetItem) {
-            (targetItem as HTMLElement).click();
-          } else {
-            console.warn(
-              `Item with value '${value}' not found in list '${id}' at index ${index}`
-            );
-          }
-        } else {
-          console.warn(`List with index ${index} not found for ID: ${id}`);
-        }
-      },
-      { value: val, id, index }
-    );
-  },
-
-  /**
-   * Solves the CAPTCHA by taking a screenshot and sending it to an external service.
-   * @param {Page} page - The Playwright page instance.
-   * @returns {Promise<string | null>} The solved CAPTCHA text or null if failed.
-   */
   solveCaptcha: async function (page: Page): Promise<string | null> {
     try {
       logDebug("Solving CAPTCHA...");
@@ -137,51 +89,6 @@ export const BrowserHelper = {
     return null;
   },
 
-  /**
-   * Retrieves cookies from Redis.
-   * @returns {Promise<string | null>} The cookies as a JSON string or null if not found.
-   */
-  getCookies: async function (): Promise<string | null> {
-    logDebug("Retrieving cookies from Redis...");
-    const cookies = await redisHelper.get("HARB_LOGIN_COOKIES_AFRICA");
-    if (!cookies) {
-      logError("No cookies found in Redis.");
-      return null;
-    }
-    logDebug("Cookies retrieved successfully.");
-    return cookies;
-  },
-
-  /**
-   * Creates a new browser context and sets cookies.
-   * @param {any} browser - The Playwright browser instance.
-   * @param {string} cookies - Cookies to set in the context.
-   * @returns {Promise<BrowserContext>} The new browser context.
-   */
-  createBrowserContext: async function (browser: any, cookies: string) {
-    logDebug("Creating browser context and setting cookies...");
-    const context = await browser.newContext();
-    await context.addCookies(JSON.parse(cookies));
-    logDebug("Browser context created successfully.");
-    return context;
-  },
-
-  /**
-   * Navigates to the target page.
-   * @param {Page} page - The Playwright page instance.
-   */
-  navigateToPage: async function (page: Page) {
-    logDebug("Navigating to target page...");
-    await page.goto(process.env.HARB_URL || "");
-    logDebug("Navigation completed.");
-  },
-
-  /**
-   * Runs fillPageDetails and solveCaptcha in parallel.
-   * @param {Page} page - The Playwright page instance.
-   * @param {any} reqBody - Request body containing user data.
-   * @returns {Promise<[boolean, string | null]>} Results of the tasks.
-   */
   runParallelTasks: async function (page: Page, reqBody: any) {
     logDebug("Running parallel tasks: filling details and solving CAPTCHA...");
     const results = await Promise.all([
@@ -196,138 +103,13 @@ export const BrowserHelper = {
     return results;
   },
 
-  /**
-   * Submits the form after filling details and solving CAPTCHA.
-   * @param {Page} page - The Playwright page instance.
-   * @param {string} captchaCode - The solved CAPTCHA code.
-   */
-  submitForm: async function (page: Page, captchaCode: string) {
-    logDebug("Submitting form...");
-    await page.fill("#CaptchaCode", captchaCode);
-    await Promise.all([page.click("#butIdent")]);
-    logDebug("Form submitted successfully.");
-  },
-
-  /**
-   * Downloads and parses Excel data from the page.
-   * @param {Page} page - The Playwright page instance.
-   * @param {Cookie[]} cookies - Cookies for the request.
-   * @returns {Promise<any>} Parsed Excel data.
-   */
-  // downloadAndParseExcel: async function (page: Page, cookies: any) {
-  //   logDebug("Downloading and parsing Excel file...");
-  //   const href = await page.evaluate(() => {
-  //     const element = document.querySelector('a[title="הדפסה"]');
-  //     return element ? element.getAttribute("href") : null;
-  //   });
-
-  //   if (!href) {
-  //     logError("No Excel download link found.");
-  //     return null;
-  //   }
-
-  //   const downloadUrl = new URL(href, "https://harb.cma.gov.il");
-  //   const cookieString = cookies
-  //     .map((cookie: any) => `${cookie.name}=${cookie.value}`)
-  //     .join("; ");
-
-  //   const response = await GeneralServer.downloadExcel(
-  //     downloadUrl.href,
-  //     cookieString
-  //   );
-  //   if (!response) {
-  //     logError("Failed to download Excel file.");
-  //     return null;
-  //   }
-
-  //   logDebug("Excel file downloaded successfully. Parsing data...");
-  //   const workbook = xlsx.read(response, { type: "buffer" });
-
-  //   const data = await this.convertSheetsToJson(workbook);
-  //   // sheets.forEach((sheetName) => {
-  //   //   const worksheet = workbook.Sheets[sheetName];
-  //   //   data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
-  //   //     raw: false,
-  //   //     defval: "",
-  //   //   });
-  //   // });
-
-  //   logDebug("Excel data parsed successfully.");
-  //   return data;
-  // },
-
-  /**
-   * Converts Excel sheets to JSON format asynchronously.
-   * @param {xlsx.WorkBook} workbook - The Excel workbook object.
-   * @returns {Promise<{ [key: string]: any[] }>} A promise that resolves to an object containing sheet data.
-   */
-  convertSheetsToJson: async function (
-    workbook: xlsx.WorkBook
-  ): Promise<{ [key: string]: any[] }> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        console.log("dasa 1111111111111111", workbook.Sheets);
-        // const sheetName = "Sheet2";
-        // const worksheet = workbook.Sheets[sheetName];
-        // const data: any = xlsx.utils.sheet_to_json(worksheet, {
-        //   raw: false,
-        //   defval: "",
-        // });
-
-        const data: { [key: string]: any[] } = {};
-        workbook.SheetNames.forEach((sheetName) => {
-          const worksheet = workbook.Sheets[sheetName];
-          data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
-            raw: false,
-            defval: "",
-          });
-        });
-
-        resolve(data);
-      } catch (error: any) {
-        reject(new Error(`Failed to convert sheets to JSON: ${error.message}`));
-      }
-    });
-  },
-
-  /**
-   * Initializes the browser with context and cookies.
-   * @returns {Promise<{ context: BrowserContext | null, browser: any }>} Browser context and instance.
-   */
-  initializeBrowser: async function (): Promise<{
-    context: BrowserContext | null;
-    browser: any;
-  }> {
-    logDebug("Initializing browser...");
-    const redisCookies = await BrowserHelper.getCookies();
-    if (!redisCookies) {
-      logError("No cookies found in Redis.");
-      return { browser: null, context: null };
-    }
-
-    const browser = await chromium.launch({ headless: false });
-    const context = await BrowserHelper.createBrowserContext(
-      browser,
-      redisCookies
-    );
-    logDebug("Browser initialized successfully.");
-    return { context, browser };
-  },
-
-  /**
-   * Processes user data by filling the form, solving CAPTCHA, and downloading Excel.
-   * @param {Page} page - The Playwright page instance.
-   * @param {BrowserContext} context - The Playwright browser context.
-   * @param {any} reqBody - Request body with user data.
-   * @returns {Promise<any>} Parsed Excel data.
-   */
   processUserData: async function (
     page: Page,
     context: BrowserContext,
     reqBody: any
   ): Promise<any> {
     logDebug("Processing user data...");
-    await BrowserHelper.navigateToPage(page);
+    await BrowserUtils.navigateToPage(page);
 
     const [fillPageDetailsResult, captchaCode] =
       await BrowserHelper.runParallelTasks(page, reqBody);
@@ -339,7 +121,7 @@ export const BrowserHelper = {
       return null;
     }
 
-    await BrowserHelper.submitForm(page, captchaCode);
+    await BrowserUtils.submitForm(page, captchaCode);
     await page.waitForNavigation();
     await page.waitForSelector("#butInsuranceOf");
     await page.click("#butInsuranceOf");
@@ -381,10 +163,6 @@ export const BrowserHelper = {
 
       const htmlContent = await page.content();
 
-      // console.log("📄 HTML Content:");
-      // console.log(htmlContent);
-
-      // הכנסת ה-HTML לדף Playwright
       await page.setContent(htmlContent);
 
       // חילוץ נתוני הטבלה
@@ -413,41 +191,10 @@ export const BrowserHelper = {
         "סיווג תוכנית",
       ];
 
-      const jsonData = tableData.map((row: any) => {
-        const obj = {} as any;
-        row.forEach((cell: any, index: any) => {
-          obj[headers[index]] = cell;
-        });
-        return obj;
-      });
-
       return tableData;
     } catch (error) {
       console.error("❌ Error in downloadAndParseExcel:", error);
       throw error;
     }
   },
-
-  /**
-   * Fetches Excel data after user data processing.
-   * @param {Page} page - The Playwright page instance.
-   * @param {BrowserContext} context - The Playwright browser context.
-   * @returns {Promise<any>} Parsed Excel data.
-   */
-  // fetchExcelData: async function (
-  //   page: Page,
-  //   context: BrowserContext
-  // ): Promise<any> {
-  //   logDebug("Fetching Excel data...");
-  //   const cookies = await context.cookies();
-  //   const excelData = await BrowserHelper.downloadAndParseExcel(page, cookies);
-
-  //   if (!excelData) {
-  //     logError("Failed to download or parse Excel data.");
-  //     return null;
-  //   }
-
-  //   logDebug("Excel data fetched successfully.");
-  //   return excelData;
-  // },
 };
