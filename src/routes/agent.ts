@@ -1,16 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { AgentController } from "../controller/agent-controller";
 import { logError } from "../utils/logger";
+import { UserDataReq } from "../entity/user-data-entity";
 
 export async function agentRoute(fastify: FastifyInstance) {
   fastify.post("userdata", async (request, reply) => {
     try {
-      const reqBody = {
-        id: "306955741",
-        bod: "1987-01-01",
-        iis: "2023-10-01",
-        userid: 7877,
-      };
+      const reqBody = request.body as UserDataReq;
       const result = await AgentController.GET_USER_DATA(reqBody);
       return result;
     } catch (error) {

@@ -309,7 +309,7 @@ export const BrowserHelper = {
       return { browser: null, context: null };
     }
 
-    const browser = await chromium.launch({ headless: false });
+    const browser = await chromium.launch({ headless: true });
     const context = await BrowserHelper.createBrowserContext(
       browser,
       redisCookies

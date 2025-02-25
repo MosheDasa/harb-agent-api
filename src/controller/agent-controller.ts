@@ -3,6 +3,7 @@ import { logError, logInfo } from "../utils/logger";
 import { Replay } from "../entity/general-bo";
 import { BrowserHelper } from "../helper/browser-helper";
 import Utils from "../utils/utils";
+import { UserDataReq } from "../entity/user-data-entity";
 require("dotenv").config();
 
 export const AgentController = {
@@ -11,7 +12,7 @@ export const AgentController = {
    * @param {any} reqBody - The request body containing user details.
    * @returns {Promise<Replay>} - Response object indicating success or failure.
    */
-  GET_USER_DATA: async function (reqBody: any): Promise<Replay> {
+  GET_USER_DATA: async function (reqBody: UserDataReq): Promise<Replay> {
     logInfo("Starting GET_USER_DATA process...");
 
     // אתחול הדפדפן והקונטקסט
