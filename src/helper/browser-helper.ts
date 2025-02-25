@@ -1,10 +1,10 @@
 import { BrowserContext, chromium, Cookie, Page } from "playwright";
 import Utils from "../utils/utils";
 import { redisHelper } from "./redis-helper";
-import { logError, logInfo } from "../utils/logger";
 import { GeneralServer } from "../server/general-server";
 import axios from "axios";
 import * as xlsx from "xlsx";
+import { logDebug, logError } from "../utils/logger";
 require("dotenv").config();
 
 export const BrowserHelper = {
@@ -16,13 +16,13 @@ export const BrowserHelper = {
    */
   fillPageDetails: async function (page: Page, data: any): Promise<boolean> {
     try {
-      logInfo("Filling page details...");
+      logDebug("Filling page details...");
 
       // Wait for ID input and fill it
       const idInput = page.locator("#txtId");
       await idInput.waitFor({ state: "visible" });
       await idInput.fill(data.id.toString());
-      logInfo("User ID filled successfully.");
+      logDebug("User ID filled successfully.");
 
       // Parse dates
       const parsedBod = Utils.parseDate(data.bod);
@@ -48,12 +48,12 @@ export const BrowserHelper = {
           )
         )
       );
-      logInfo("Date fields filled successfully.");
+      logDebug("Date fields filled successfully.");
 
       // Approve terms
       const approveCheckbox = page.locator("#cbAproveTerm");
       await approveCheckbox.check();
-      logInfo("Terms approved successfully.");
+      logDebug("Terms approved successfully.");
 
       return true;
     } catch (error: any) {
@@ -75,7 +75,7 @@ export const BrowserHelper = {
     id: string,
     index: number
   ) {
-    logInfo(
+    logDebug(
       `Selecting item '${val}' from dropdown '${id}' at index ${index}...`
     );
     await page.evaluate(
@@ -101,7 +101,7 @@ export const BrowserHelper = {
       },
       { value: val, id, index }
     );
-    logInfo(`Item '${val}' selected successfully.`);
+    logDebug(`Item '${val}' selected successfully.`);
   },
 
   /**
@@ -111,7 +111,7 @@ export const BrowserHelper = {
    */
   solveCaptcha: async function (page: Page): Promise<string | null> {
     try {
-      logInfo("Solving CAPTCHA...");
+      logDebug("Solving CAPTCHA...");
       const captchaElement = page.locator(
         "#LocateBeneficiariesCaptcha_CaptchaImage"
       );
@@ -126,7 +126,7 @@ export const BrowserHelper = {
         );
 
         if (captchaResponse?.status === "completed") {
-          logInfo("CAPTCHA solved successfully.");
+          logDebug("CAPTCHA solved successfully.");
           return captchaResponse.text;
         } else {
           logError("Failed to solve CAPTCHA - Incomplete status");
@@ -146,13 +146,13 @@ export const BrowserHelper = {
    * @returns {Promise<string | null>} The cookies as a JSON string or null if not found.
    */
   getCookies: async function (): Promise<string | null> {
-    logInfo("Retrieving cookies from Redis...");
+    logDebug("Retrieving cookies from Redis...");
     const cookies = await redisHelper.get("HARB_LOGIN_COOKIES_AFRICA");
     if (!cookies) {
       logError("No cookies found in Redis.");
       return null;
     }
-    logInfo("Cookies retrieved successfully.");
+    logDebug("Cookies retrieved successfully.");
     return cookies;
   },
 
@@ -163,10 +163,10 @@ export const BrowserHelper = {
    * @returns {Promise<BrowserContext>} The new browser context.
    */
   createBrowserContext: async function (browser: any, cookies: string) {
-    logInfo("Creating browser context and setting cookies...");
+    logDebug("Creating browser context and setting cookies...");
     const context = await browser.newContext();
     await context.addCookies(JSON.parse(cookies));
-    logInfo("Browser context created successfully.");
+    logDebug("Browser context created successfully.");
     return context;
   },
 
@@ -175,9 +175,9 @@ export const BrowserHelper = {
    * @param {Page} page - The Playwright page instance.
    */
   navigateToPage: async function (page: Page) {
-    logInfo("Navigating to target page...");
+    logDebug("Navigating to target page...");
     await page.goto(process.env.HARB_URL || "");
-    logInfo("Navigation completed.");
+    logDebug("Navigation completed.");
   },
 
   /**
@@ -187,7 +187,7 @@ export const BrowserHelper = {
    * @returns {Promise<[boolean, string | null]>} Results of the tasks.
    */
   runParallelTasks: async function (page: Page, reqBody: any) {
-    logInfo("Running parallel tasks: filling details and solving CAPTCHA...");
+    logDebug("Running parallel tasks: filling details and solving CAPTCHA...");
     const results = await Promise.all([
       await BrowserHelper.fillPageDetails(page, {
         id: reqBody.id,
@@ -196,7 +196,7 @@ export const BrowserHelper = {
       }),
       await BrowserHelper.solveCaptcha(page),
     ]);
-    logInfo("Parallel tasks completed.");
+    logDebug("Parallel tasks completed.");
     return results;
   },
 
@@ -206,10 +206,10 @@ export const BrowserHelper = {
    * @param {string} captchaCode - The solved CAPTCHA code.
    */
   submitForm: async function (page: Page, captchaCode: string) {
-    logInfo("Submitting form...");
+    logDebug("Submitting form...");
     await page.fill("#CaptchaCode", captchaCode);
     await Promise.all([page.click("#butIdent")]);
-    logInfo("Form submitted successfully.");
+    logDebug("Form submitted successfully.");
   },
 
   /**
@@ -219,7 +219,7 @@ export const BrowserHelper = {
    * @returns {Promise<any>} Parsed Excel data.
    */
   // downloadAndParseExcel: async function (page: Page, cookies: any) {
-  //   logInfo("Downloading and parsing Excel file...");
+  //   logDebug("Downloading and parsing Excel file...");
   //   const href = await page.evaluate(() => {
   //     const element = document.querySelector('a[title="הדפסה"]');
   //     return element ? element.getAttribute("href") : null;
@@ -244,7 +244,7 @@ export const BrowserHelper = {
   //     return null;
   //   }
 
-  //   logInfo("Excel file downloaded successfully. Parsing data...");
+  //   logDebug("Excel file downloaded successfully. Parsing data...");
   //   const workbook = xlsx.read(response, { type: "buffer" });
 
   //   const data = await this.convertSheetsToJson(workbook);
@@ -256,7 +256,7 @@ export const BrowserHelper = {
   //   //   });
   //   // });
 
-  //   logInfo("Excel data parsed successfully.");
+  //   logDebug("Excel data parsed successfully.");
   //   return data;
   // },
 
@@ -302,7 +302,7 @@ export const BrowserHelper = {
     context: BrowserContext | null;
     browser: any;
   }> {
-    logInfo("Initializing browser...");
+    logDebug("Initializing browser...");
     const redisCookies = await BrowserHelper.getCookies();
     if (!redisCookies) {
       logError("No cookies found in Redis.");
@@ -314,7 +314,7 @@ export const BrowserHelper = {
       browser,
       redisCookies
     );
-    logInfo("Browser initialized successfully.");
+    logDebug("Browser initialized successfully.");
     return { context, browser };
   },
 
@@ -330,7 +330,7 @@ export const BrowserHelper = {
     context: BrowserContext,
     reqBody: any
   ): Promise<any> {
-    logInfo("Processing user data...");
+    logDebug("Processing user data...");
     await BrowserHelper.navigateToPage(page);
 
     const [fillPageDetailsResult, captchaCode] =
@@ -347,7 +347,7 @@ export const BrowserHelper = {
     await page.waitForNavigation();
     await page.waitForSelector("#butInsuranceOf");
     await page.click("#butInsuranceOf");
-    logInfo("User data processed successfully.");
+    logDebug("User data processed successfully.");
     await new Promise((resolve) => setTimeout(resolve, 4000));
     return await this.downloadAndParseExcel(page, context); // this.fetchExcelData(page, context);
   },
@@ -405,7 +405,7 @@ export const BrowserHelper = {
   //   page: Page,
   //   context: BrowserContext
   // ): Promise<any> {
-  //   logInfo("Fetching Excel data...");
+  //   logDebug("Fetching Excel data...");
   //   const cookies = await context.cookies();
   //   const excelData = await BrowserHelper.downloadAndParseExcel(page, cookies);
 
@@ -414,7 +414,7 @@ export const BrowserHelper = {
   //     return null;
   //   }
 
-  //   logInfo("Excel data fetched successfully.");
+  //   logDebug("Excel data fetched successfully.");
   //   return excelData;
   // },
 };

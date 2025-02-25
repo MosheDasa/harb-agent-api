@@ -30,12 +30,9 @@ process.on("uncaughtException", (err) => {
   logError("uncaughtException:" + err.name, err);
 });
 
-logInfo("Registering routes...");
-
 // רישום המסלולים בצורה בטוחה
 //server.register(agentRoute);
 server.register(agentRoute, { prefix: "/api/" });
-logInfo("agent route registered successfully.");
 
 // הפעלת השרת
 server.listen({ port: 3002, host: "0.0.0.0" });

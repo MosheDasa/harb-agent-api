@@ -1,5 +1,5 @@
 import { chromium, Page } from "playwright";
-import { logError, logInfo } from "../utils/logger";
+import { logError, logDebug } from "../utils/logger";
 
 require("dotenv").config();
 
@@ -103,7 +103,7 @@ export const GeneralServer = {
 
       // Read response as array buffer
       const arrayBuffer = await response.arrayBuffer();
-      logInfo("Downloaded file size:", { byteLength: arrayBuffer.byteLength });
+      logDebug("Downloaded file size:", { byteLength: arrayBuffer.byteLength });
       return arrayBuffer;
     } catch (error) {
       logError("Error downloading file:", { error });
