@@ -2,6 +2,7 @@ import { chromium, BrowserContext, Page } from "playwright";
 import { logError, logInfo } from "../utils/logger";
 import { Replay } from "../entity/general-bo";
 import { BrowserHelper } from "../helper/browser-helper";
+import Utils from "../utils/utils";
 require("dotenv").config();
 
 export const AgentController = {
@@ -19,11 +20,7 @@ export const AgentController = {
     try {
       if (!context) {
         logError("No cookies found in Redis.");
-        return {
-          isSuccess: false,
-          message: "No cookies found.",
-          statusCode: 1,
-        };
+        return Utils.createResponse(false, "No cookies found.", 1);
       }
 
       logInfo("Browser context initialized successfully.");
@@ -41,33 +38,24 @@ export const AgentController = {
 
       if (!excelData) {
         logError("Failed to process user data.");
-        return {
-          isSuccess: false,
-          message: "Failed to process user data.",
-          statusCode: 2,
-        };
+        return Utils.createResponse(false, "Failed to process user data.", 2);
       }
 
       logInfo("Page accessed and Excel data retrieved successfully.");
-      return {
-        isSuccess: true,
-        message: "Page accessed successfully.",
-        statusCode: 3,
-        data: excelData,
-      };
+      return Utils.createResponse(
+        true,
+        "Page accessed successfully.",
+        0,
+        excelData
+      );
     } catch (error: any) {
       logError(`Error during user data retrieval: ${error.message}`);
-      return {
-        isSuccess: false,
-        message: "Failed to access the page.",
-        statusCode: 99,
-      };
+      return Utils.createResponse(false, "Failed to access the page.", 99);
     } finally {
       // סגירת הדפדפן לאחר השימוש
       if (browser) {
         logInfo("Closing browser...");
-        await new Promise((resolve) => setTimeout(resolve, 4000));
-        await browser.close();
+        //  await browser.close();
         logInfo("Browser closed.");
       }
     }

@@ -246,19 +246,51 @@ export const BrowserHelper = {
     logInfo("Excel file downloaded successfully. Parsing data...");
     const workbook = xlsx.read(response, { type: "buffer" });
 
-    const sheets = workbook.SheetNames;
-    const data: { [key: string]: any[] } = {};
-
-    sheets.forEach((sheetName) => {
-      const worksheet = workbook.Sheets[sheetName];
-      data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
-        raw: false,
-        defval: "",
-      });
-    });
+    const data = await this.convertSheetsToJson(workbook);
+    // sheets.forEach((sheetName) => {
+    //   const worksheet = workbook.Sheets[sheetName];
+    //   data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
+    //     raw: false,
+    //     defval: "",
+    //   });
+    // });
 
     logInfo("Excel data parsed successfully.");
     return data;
+  },
+
+  /**
+   * Converts Excel sheets to JSON format asynchronously.
+   * @param {xlsx.WorkBook} workbook - The Excel workbook object.
+   * @returns {Promise<{ [key: string]: any[] }>} A promise that resolves to an object containing sheet data.
+   */
+  convertSheetsToJson: async function (
+    workbook: xlsx.WorkBook
+  ): Promise<{ [key: string]: any[] }> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        console.log("dasa 1111111111111111", workbook.Sheets);
+        // const sheetName = "Sheet2";
+        // const worksheet = workbook.Sheets[sheetName];
+        // const data: any = xlsx.utils.sheet_to_json(worksheet, {
+        //   raw: false,
+        //   defval: "",
+        // });
+
+        const data: { [key: string]: any[] } = {};
+        workbook.SheetNames.forEach((sheetName) => {
+          const worksheet = workbook.Sheets[sheetName];
+          data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
+            raw: false,
+            defval: "",
+          });
+        });
+
+        resolve(data);
+      } catch (error: any) {
+        reject(new Error(`Failed to convert sheets to JSON: ${error.message}`));
+      }
+    });
   },
 
   /**

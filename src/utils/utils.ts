@@ -22,6 +22,14 @@ export const Utils = {
       day: date.getDate(),
     };
   },
+  createResponse: (
+    isSuccess: boolean,
+    message: string,
+    statusCode: number,
+    data?: any
+  ) => {
+    return { isSuccess, message, statusCode, data };
+  },
 };
 
 export default Utils;
