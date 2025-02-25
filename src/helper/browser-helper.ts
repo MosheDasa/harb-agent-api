@@ -347,27 +347,43 @@ export const BrowserHelper = {
     await page.waitForNavigation();
     await page.waitForSelector("#butInsuranceOf");
     await page.click("#butInsuranceOf");
-    logDebug("User data processed successfully.");
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-    return await this.downloadAndParseExcel(page, context); // this.fetchExcelData(page, context);
+    logDebug("butInsuranceOf.");
+    await new Promise((resolve) => setTimeout(resolve, 7000));
+    const excelData = await this.downloadAndParseExcel(page, context);
+    logDebug("User data processed successfully.", excelData);
+    return excelData;
   },
 
   downloadAndParseExcel: async (page: any, context: any) => {
-    const href = await page.evaluate(() => {
-      const element = document.querySelector('a[title="הדפסה"]');
-      return element ? element.getAttribute("href") : null;
-    });
+    try {
+      console.log("🔄 Starting downloadAndParseExcel...");
 
-    if (href) {
-      const downloadUrl = new URL(href, "https://harb.cma.gov.il"); // Replace with your base URL
-      // Create a custom agent to skip certificate validation
+      // שלב 1: מציאת קישור להורדה
+      const href = await page.evaluate(() => {
+        const element = document.querySelector('a[title="הדפסה"]');
+        return element ? element.getAttribute("href") : null;
+      });
 
+      console.log(`🔗 Found href: ${href}`);
+
+      if (!href) {
+        console.warn("⚠️ No download link found.");
+        return null;
+      }
+
+      // שלב 2: יצירת URL מלא
+      const downloadUrl = new URL(href, "https://harb.cma.gov.il");
+      console.log(`🌍 Download URL: ${downloadUrl.href}`);
+
+      // שלב 3: קבלת קובצי Cookie
       const cookies = await context.cookies();
       const cookieString = cookies
         .map((cookie: any) => `${cookie.name}=${cookie.value}`)
         .join("; ");
+      console.log(`🍪 Cookies: ${cookieString}`);
 
-      // Download the file as a buffer
+      // שלב 4: הורדת הקובץ
+      console.log("📥 Downloading the Excel file...");
       const response = await axios.get(downloadUrl.href, {
         responseType: "arraybuffer",
         headers: {
@@ -376,25 +392,43 @@ export const BrowserHelper = {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         },
       });
+
+      console.log(
+        `✅ File downloaded successfully. Size: ${response.data.length} bytes`
+      );
+
+      // שלב 5: המרת הנתונים לבאפר
       const buffer = Buffer.from(response.data, "binary");
 
-      // Read the file as a Workbook
+      // שלב 6: קריאת קובץ ה-Excel
+      console.log("📊 Reading Excel workbook...");
       const workbook = xlsx.read(buffer, { type: "buffer" });
 
-      // Convert each sheet to a JSON object
+      // שלב 7: המרת גיליונות ל-JSON
       const sheets = workbook.SheetNames;
+      console.log(`📄 Sheets found: ${sheets.join(", ")}`);
+
       const data: { [key: string]: any[] } = {};
       sheets.forEach((sheetName) => {
+        console.log(`🔍 Processing sheet: ${sheetName}`);
         const worksheet = workbook.Sheets[sheetName];
         data[sheetName] = xlsx.utils.sheet_to_json(worksheet, {
           raw: false,
           defval: "",
         });
+        console.log(
+          `📋 Rows extracted from ${sheetName}: ${data[sheetName].length}`
+        );
       });
 
+      console.log("✅ Excel parsing completed successfully.");
       return data;
+    } catch (error) {
+      console.error("❌ Error in downloadAndParseExcel:", error);
+      throw error;
     }
   },
+
   /**
    * Fetches Excel data after user data processing.
    * @param {Page} page - The Playwright page instance.
