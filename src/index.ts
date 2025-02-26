@@ -4,7 +4,6 @@ import { agentRoute } from "./routes/agent";
 import { asyncStorage, setRequestContext } from "./Hook/fastify";
 import { v4 as uuidv4 } from "uuid";
 const server = fastify();
-
 server.addHook(
   "onRequest",
   (request: FastifyRequest, reply: FastifyReply, done) => {
@@ -47,7 +46,6 @@ process.on("uncaughtException", (err) => {
   logError("uncaughtException:" + err.name, err);
 });
 
-// רישום המסלולים בצורה בטוחה
 //server.register(agentRoute);
 server.register(agentRoute, { prefix: "/api/" });
 
